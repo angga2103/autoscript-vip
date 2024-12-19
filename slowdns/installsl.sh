@@ -6,7 +6,7 @@ ns_domain_cloudflare() {
 	SUB_DOMAIN=${SUB}".kingvpn.my.id"
 	NS_DOMAIN=ns.${SUB_DOMAIN}
 	CF_ID=hannaugo@gmail.com
-    CF_KEY=e3341a6705e970eda3577f440d0cca6e3d682
+    CF_KEY=367fa2d5f7464a01d9ebf3961374e3b67f577
 	set -euo pipefail
 	IP=$(wget -qO- ipinfo.io/ip)
 	echo "Updating DNS NS for ${NS_DOMAIN}..."
@@ -47,15 +47,15 @@ ns_domain_cloudflare() {
 setup_dnstt() {
 	cd
 	mkdir -p /etc/slowdns
-	wget -O dnstt-server "https://raw.githubusercontent.com/litfina/autoscript-vip/main/slowdns/dnstt-server" >/dev/null 2>&1
+	wget -O dnstt-server "https://raw.githubusercontent.com/angga2103/autoscript-vip/main/slowdns/dnstt-server" >/dev/null 2>&1
 	chmod +x dnstt-server >/dev/null 2>&1
-	wget -O dnstt-client "https://raw.githubusercontent.com/litfina/autoscript-vip/main/slowdns/dnstt-client" >/dev/null 2>&1
+	wget -O dnstt-client "https://raw.githubusercontent.com/angga2103/autoscript-vip/main/slowdns/dnstt-client" >/dev/null 2>&1
 	chmod +x dnstt-client >/dev/null 2>&1
 	./dnstt-server -gen-key -privkey-file server.key -pubkey-file server.pub
 	chmod +x *
 	mv * /etc/slowdns
-	wget -O /etc/systemd/system/client.service "https://raw.githubusercontent.com/litfina/autoscript-vip/main/slowdns/client" >/dev/null 2>&1
-	wget -O /etc/systemd/system/server.service "https://raw.githubusercontent.com/litfina/autoscript-vip/main/slowdns/server" >/dev/null 2>&1
+	wget -O /etc/systemd/system/client.service "https://raw.githubusercontent.com/angga2103/autoscript-vip/main/slowdns/client" >/dev/null 2>&1
+	wget -O /etc/systemd/system/server.service "https://raw.githubusercontent.com/angga2103/autoscript-vip/main/slowdns/server" >/dev/null 2>&1
 	sed -i "s/xxxx/$NS_DOMAIN/g" /etc/systemd/system/client.service 
 	sed -i "s/xxxx/$NS_DOMAIN/g" /etc/systemd/system/server.service 
 }
