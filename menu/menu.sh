@@ -1,44 +1,70 @@
 #!/bin/bash
-biji=`date +"%Y-%m-%d" -d "$dateFromServer"`
-MYIP=$(curl -s https://icanhazip.com)
+
+# Mendapatkan tanggal hari ini
+biji=$(date +"%Y-%m-%d" -d "$dateFromServer")
+
+# Mendapatkan IP publik
+MYIP=$(curl -s https://ifconfig.me)
+
+# Mengambil tema warna yang digunakan
 colornow=$(cat /etc/rmbl/theme/color.conf)
+
+# Mendefinisikan warna untuk output
 export NC="\e[0m"
-export yl='\033[0;33m';
+export yl='\033[0;33m'
 export RED="\033[0;31m"
-export COLOR1="$(cat /etc/rmbl/theme/$colornow | grep -w "TEXT" | cut -d: -f2|sed 's/ //g')"
-export COLBG1="$(cat /etc/rmbl/theme/$colornow | grep -w "BG" | cut -d: -f2|sed 's/ //g')"
-WH='\033[1;37m'
-tram=$( free -h | awk 'NR==2 {print $2}' )
-uram=$( free -h | awk 'NR==2 {print $3}' )
+export COLOR1="$(cat /etc/rmbl/theme/$colornow | grep -w "TEXT" | cut -d: -f2 | sed 's/ //g')"
+export COLBG1="$(cat /etc/rmbl/theme/$colornow | grep -w "BG" | cut -d: -f2 | sed 's/ //g')"
+export WH='\033[1;37m'
+
+# Mendapatkan informasi RAM
+tram=$(free -h | awk 'NR==2 {print $2}')
+uram=$(free -h | awk 'NR==2 {print $3}')
+
+# Mendapatkan informasi ISP dan kota
 ISP=$(cat /etc/xray/isp)
 CITY=$(cat /etc/xray/city)
+
+# Mendapatkan informasi author
 author=$(cat /etc/profil)
+
+# Mendapatkan tanggal dan waktu saat ini
 DATE2=$(date -R | cut -d " " -f -5)
+
+# Mendapatkan tanggal kedaluwarsa dari sumber eksternal
 Exp2=$(curl -sS https://raw.githubusercontent.com/angga2103/permission/main/ipmini | grep $MYIP | awk '{print $3}')
-export RED='\033[0;31m'
+
+# Mendefinisikan warna tambahan
 export GREEN='\033[0;32m'
+
+# Mendapatkan tanggal dari server Google
 data_server=$(curl -v --insecure --silent https://google.com/ 2>&1 | grep Date | sed -e 's/< Date: //')
 date_list=$(date +"%Y-%m-%d" -d "$data_server")
+
+# URL untuk data IP
 data_ip="https://raw.githubusercontent.com/angga2103/permission/main/ipmini"
+
+# Fungsi untuk mengecek status skrip
 checking_sc() {
-useexp=$(curl -sS $data_ip | grep $MYIP | awk '{print $3}')
-if [[ $date_list < $useexp ]]; then
-echo -ne
-else
-systemctl stop nginx
-echo -e "$COLOR1╭═════════════════════════════════════════════════╮${NC}"
-echo -e "$COLOR1│${NC}${COLBG1}          ${WH}• AUTOSCRIPT PREMIUM •                 ${NC}$COLOR1│ $NC"
-echo -e "$COLOR1╰═════════════════════════════════════════════════╯${NC}"
-echo -e "$COLOR1╭═════════════════════════════════════════════════╮${NC}"
-echo -e "$COLOR1│            ${RED}PERMISSION DENIED !${NC}                  $COLOR1│"
-echo -e "$COLOR1│   ${yl}Your VPS${NC} $MYIP \033[0;36mHas been Banned ${NC}      $COLOR1│"
-echo -e "$COLOR1│     ${yl}Buy access permissions for scripts${NC}          $COLOR1│"
-echo -e "$COLOR1│             \033[0;32mContact Your Admin ${NC}                 $COLOR1│"
-echo -e "$COLOR1╰═════════════════════════════════════════════════╯${NC}"
-key
-fi
+    useexp=$(curl -sS $data_ip | grep $MYIP | awk '{print $3}')
+    if [[ $date_list < $useexp ]]; then
+        echo -ne
+    else
+        systemctl stop nginx
+        echo -e "$COLOR1╭═════════════════════════════════════════════════╮${NC}"
+        echo -e "$COLOR1│${NC}${COLBG1}          ${WH}• AUTOSCRIPT PREMIUM •                 ${NC}$COLOR1│ $NC"
+        echo -e "$COLOR1╰═════════════════════════════════════════════════╯${NC}"
+        echo -e "$COLOR1╭═════════════════════════════════════════════════╮${NC}"
+        echo -e "$COLOR1│            ${RED}PERMISSION DENIED !${NC}                  $COLOR1│"
+        echo -e "$COLOR1│   ${yl}Your VPS${NC} $MYIP \033[0;36mHas been Banned ${NC}      $COLOR1│"
+        echo -e "$COLOR1│     ${yl}Buy access permissions for scripts${NC}          $COLOR1│"
+        echo -e "$COLOR1│             \033[0;32mContact Your Admin ${NC}                 $COLOR1│"
+        echo -e "$COLOR1╰═════════════════════════════════════════════════╯${NC}"
+        key
+    fi
 }
-clear
+
+# Panggil fungsi checking_sc
 checking_sc
 cd
 if [ ! -e /etc/per/id ]; then
@@ -216,7 +242,7 @@ if [[ -e /etc/github/api ]]; then
 m-ip
 else
 mkdir /etc/github
-echo "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" > /etc/github/api
+echo "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" > /etc/github/api
 echo "anggadian2103@gmail.com" > /etc/github/email
 echo "angga2103" > /etc/github/username
 m-ip
