@@ -2,7 +2,7 @@
 
 # ==============================================================================
 # Skrip Instalasi, Manajemen, & Update Otomatis untuk Bot Telegram Konverter
-# Versi 4.1 - Hasil untuk Admin & Pengguna
+# Versi 4.0 - Notifikasi Admin & Menu Hapus
 # ==============================================================================
 
 # --- Konfigurasi & Variabel Global ---
@@ -30,7 +30,7 @@ set -e
 function create_bot_script() {
     echo -e "${YELLOW}Harap masukkan informasi bot dan notifikasi:${NC}"
     read -p "Masukkan Token Bot Telegram Anda: " BOT_TOKEN
-    read -p "Masukkan ID Telegram Anda (untuk menerima notifikasi & salinan hasil): " ADMIN_ID
+    read -p "Masukkan ID Telegram Anda (untuk menerima notifikasi & hasil): " ADMIN_ID
 
     if [ -z "$BOT_TOKEN" ] || [ -z "$ADMIN_ID" ]; then
         echo -e "${RED}Token Bot dan ID Notifikasi tidak boleh kosong.${NC}"; exit 1
@@ -49,6 +49,7 @@ ADMIN_ID = $ADMIN_ID # ID untuk notifikasi dan hasil
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
+user_data = {}
 
 # --- FUNGSI PARSER (Tidak berubah) ---
 def parse_vmess(uri: str) -> dict:
@@ -90,12 +91,13 @@ def generate_yaml(proxies: list) -> str:
 
 # --- HANDLER BOT (Logika Baru) ---
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("👋 **Selamat Datang!**\\n\\nKirimkan link VMess, VLess, atau Trojan untuk diubah ke format YAML.", parse_mode='Markdown')
+    await update.message.reply_text("👋 **Selamat Datang!**\\n\\nBot ini akan mengubah link VMess, VLess, atau Trojan menjadi format YAML.\\n\\nKirimkan saja link akun Anda (satu per baris). Hasilnya akan dikirimkan ke admin bot.", parse_mode='Markdown')
 
 async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_info = f"@{user.username}" if user.username else f"{user.first_name} (ID: {user.id})"
     
+    # Balas pengguna dengan cepat
     processing_message = await update.message.reply_text("⏳ Permintaan Anda sedang diproses...")
 
     uris = update.message.text.strip().split('\\n'); proxies = []
@@ -110,31 +112,26 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
         except Exception as e: logger.warning(f"Gagal proses URI dari {user_info}: {uri[:30]}... | Error: {e}")
     
     if not proxies:
-        await processing_message.edit_text("Gagal. Tidak ada link valid yang ditemukan."); return
+        await processing_message.edit_text("Gagal. Tidak ada link valid yang ditemukan dalam pesan Anda."); return
     
+    # Kirim notifikasi ke Admin
+    notification_text = f"🔔 **Notifikasi Bot**\\nPengguna *{html.escape(user_info)}* baru saja mengonversi *{len(proxies)}* akun."
+    await context.bot.send_message(chat_id=ADMIN_ID, text=notification_text, parse_mode='HTML')
+
+    # Kirim hasil YAML ke Admin
     yaml_content = generate_yaml(proxies)
-
-    # --- PERUBAHAN UTAMA DI SINI ---
-
-    # 1. Kirim Notifikasi & Hasil ke Admin
+    result_header = f"📄 Hasil Konversi dari {html.escape(user_info)}:"
+    # Menggunakan HTML untuk code block agar lebih fleksibel
+    message_text = f"{result_header}\\n\\n<pre><code class=\\"language-yaml\\">{html.escape(yaml_content)}</code></pre>"
+    
     try:
-        notification_text = f"🔔 **Notifikasi**\\nPengguna *{html.escape(user_info)}* mengonversi *{len(proxies)}* akun."
-        await context.bot.send_message(chat_id=ADMIN_ID, text=notification_text, parse_mode='HTML')
-        
-        admin_result_text = f"📄 Salinan Hasil dari {html.escape(user_info)}:\\n\\n<pre><code class=\\"language-yaml\\">{html.escape(yaml_content)}</code></pre>"
-        await context.bot.send_message(chat_id=ADMIN_ID, text=admin_result_text, parse_mode='HTML')
+        await context.bot.send_message(chat_id=ADMIN_ID, text=message_text, parse_mode='HTML')
     except Exception as e:
-        logger.error(f"Gagal mengirim notifikasi/hasil ke admin: {e}")
+        logger.error(f"Gagal mengirim hasil ke admin: {e}")
+        await context.bot.send_message(chat_id=ADMIN_ID, text=f"Gagal mengirim hasil dari {user_info} karena pesan terlalu panjang atau error lain.")
 
-    # 2. Kirim Hasil ke Pengguna Asli
-    try:
-        user_result_header = "✅ Berhasil! Berikut hasilnya:"
-        user_message_text = f"{user_result_header}\\n\\n<pre><code class=\\"language-yaml\\">{html.escape(yaml_content)}</code></pre>"
-        await processing_message.edit_text(text=user_message_text, parse_mode='HTML')
-    except Exception as e:
-        logger.error(f"Gagal mengirim hasil ke pengguna {user_info}: {e}")
-        await processing_message.edit_text("Terjadi kesalahan saat menampilkan hasil. Silakan coba lagi.")
-
+    # Konfirmasi ke pengguna asli
+    await processing_message.edit_text("✅ Permintaan Anda telah diproses dan hasilnya dikirimkan ke admin bot. Terima kasih!")
 
 async def post_init(application: Application):
     await application.bot.set_my_commands([BotCommand("start", "Memulai bot")])
@@ -262,27 +259,33 @@ EOF
     echo -e "${GREEN}Perintah 'm-yaml' berhasil dibuat.${NC}"
 }
 
-# --- Logika Utama Skrip Instalasi (Tidak berubah, hanya memanggil fungsi di atas) ---
+# --- Logika Utama Skrip Instalasi ---
 if [ "$(id -u)" -ne 0 ]; then
   echo -e "${RED}Skrip ini perlu dijalankan dengan hak akses root atau sudo.${NC}" >&2; exit 1
 fi
+
 echo -e "${BLUE}Memulai proses instalasi/pembaruan Bot Konverter...${NC}"
+# Langkah 1: Instalasi dependensi
 echo -e "\n${BLUE}Langkah 1: Mengupdate sistem dan menginstal dependensi...${NC}"
 apt-get update > /dev/null
 apt-get install -y python3 python3-pip python3-venv curl > /dev/null
+# Langkah 2: Setup direktori dan venv
 echo -e "\n${BLUE}Langkah 2: Menyiapkan direktori & lingkungan virtual...${NC}"
 mkdir -p "$PROJECT_DIR"
 if [ ! -d "$VENV_DIR" ]; then python3 -m venv "$VENV_DIR"; fi
 source "$VENV_DIR/bin/activate"
 pip install -q python-telegram-bot
 deactivate
+# Langkah 3: Buat skrip bot
 if [ ! -f "$BOT_SCRIPT_PATH" ]; then
     echo -e "\n${BLUE}Langkah 3: Konfigurasi awal bot...${NC}"; create_bot_script
 else
     echo -e "\n${YELLOW}Langkah 3: Skrip bot sudah ada, melewati konfigurasi awal.${NC}"
 fi
+# Langkah 4: Buat file helper
 echo -e "\n${BLUE}Langkah 4: Membuat file helper untuk menu...${NC}"
 declare -f create_bot_script > "$HELPER_SCRIPT_PATH"
+# Langkah 5: Buat service systemd
 echo -e "\n${BLUE}Langkah 5: Membuat service systemd...${NC}"
 CURRENT_USER=${SUDO_USER:-$(whoami)}
 cat << EOF > "$SERVICE_FILE"
@@ -299,12 +302,15 @@ RestartSec=5
 [Install]
 WantedBy=multi-user.target
 EOF
+# Langkah 6: Buat skrip menu
 echo -e "\n${BLUE}Langkah 6: Membuat/Memperbarui menu manajemen...${NC}"
 create_menu_script
+# Langkah 7: Jalankan service
 echo -e "\n${BLUE}Langkah 7: Menjalankan dan mengaktifkan service bot...${NC}"
 systemctl daemon-reload
 systemctl enable converterbot.service > /dev/null
 systemctl restart converterbot.service
+# Verifikasi
 echo -e "\n${GREEN}--- PROSES SELESAI ---${NC}"
 echo -e "Bot Anda sekarang berjalan 24/7."
 echo -e "Gunakan perintah '${YELLOW}m-yaml${NC}' untuk mengelola bot Anda."
