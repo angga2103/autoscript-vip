@@ -2,7 +2,7 @@
 
 # ==============================================================================
 # Skrip Instalasi, Manajemen, & Update Otomatis untuk Bot Telegram Konverter
-# Versi 4.2 - Tanpa Otorisasi, Hasil untuk Admin & Pengguna
+# Versi 4.3 - Perbaikan Izin Menu Edit & Logika Pengiriman Hasil
 # ==============================================================================
 
 # --- Konfigurasi & Variabel Global ---
@@ -31,6 +31,7 @@ function create_bot_script() {
     fi
 
     echo -e "${BLUE}Membuat file skrip bot di '$BOT_SCRIPT_PATH'...${NC}"
+    # Python script logic is now correct
     cat << EOF > "$BOT_SCRIPT_PATH"
 import logging, base64, json, html
 from urllib.parse import urlparse, parse_qs, unquote
@@ -39,12 +40,12 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 
 # --- KONFIGURASI ---
 BOT_TOKEN = "$BOT_TOKEN"
-ADMIN_ID = $ADMIN_ID # ID untuk notifikasi dan hasil
+ADMIN_ID = $ADMIN_ID
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# --- FUNGSI PARSER (Tidak berubah) ---
+# --- PARSER FUNCTIONS (No changes) ---
 def parse_vmess(uri: str) -> dict:
     decoded_str = base64.b64decode(uri[8:]).decode('utf-8'); decoded = json.loads(decoded_str)
     proxy = {'name': decoded.get('ps', f"{decoded.get('add', '')}:{decoded.get('port', '')}"),'type': 'vmess','server': decoded.get('add'),'port': int(decoded.get('port')),'uuid': decoded.get('id'),'alterId': decoded.get('aid', 0),'cipher': decoded.get('scy', 'auto'),'tls': decoded.get('tls') == 'tls','network': decoded.get('net', 'tcp')}
@@ -65,7 +66,7 @@ def parse_trojan(uri: str) -> dict:
     if proxy['network'] == 'grpc': proxy['grpc-opts'] = {'grpc-service-name': params.get('serviceName', [''])[0]}
     return proxy
 
-# --- FUNGSI GENERATOR YAML (Tidak berubah) ---
+# --- YAML GENERATOR FUNCTION (No changes) ---
 def generate_yaml(proxies: list) -> str:
     yaml_string = 'proxies:\\n'
     for p in proxies:
@@ -82,7 +83,7 @@ def generate_yaml(proxies: list) -> str:
         if p.get('grpc-opts'): yaml_string += '    grpc-opts:\\n'; yaml_string += f'      grpc-service-name: "{p["grpc-opts"]["grpc-service-name"]}"\\n'
     return yaml_string
 
-# --- HANDLER BOT (Logika Baru yang Diperbaiki) ---
+# --- BOT HANDLERS (Corrected Logic) ---
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("👋 **Selamat Datang!**\\n\\nKirimkan link VMess, VLess, atau Trojan untuk diubah ke format YAML.", parse_mode='Markdown')
 
@@ -111,7 +112,7 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     # 1. Kirim Notifikasi & Salinan ke Admin
     try:
-        notification_text = f"🔔 **Notifikasi**\\nPengguna *{html.escape(user_info)}* mengonversi *{len(proxies)}* akun."
+        notification_text = f"🔔 Notifikasi: Pengguna *{html.escape(user_info)}* mengonversi *{len(proxies)}* akun."
         await context.bot.send_message(chat_id=ADMIN_ID, text=notification_text, parse_mode='HTML')
         
         admin_result_text = f"📄 Salinan Hasil dari {html.escape(user_info)}:\\n\\n<pre><code class=\\"language-yaml\\">{escaped_yaml}</code></pre>"
@@ -141,12 +142,18 @@ EOF
     echo -e "${GREEN}File skrip bot berhasil dibuat/diperbarui.${NC}"
 }
 
-# Fungsi untuk membuat skrip menu manajemen (Tidak berubah)
 function create_menu_script() {
     echo -e "${BLUE}Membuat perintah manajemen 'm-yaml'...${NC}"
     cat << EOF > "$MENU_SCRIPT_PATH"
 #!/bin/bash
 # Skrip menu untuk mengelola bot konverter
+
+# --- PERBAIKAN UTAMA: Memastikan skrip ini selalu berjalan dengan sudo ---
+if [ "\$(id -u)" -ne 0 ]; then
+    echo -e "\033[1;33mPerintah ini memerlukan hak akses root. Mencoba menjalankan ulang dengan sudo...\033[0m"
+    sudo "\$0" "\$@"
+    exit \$?
+fi
 
 # Warna
 GREEN='\033[0;32m'; BLUE='\033[0;34m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
@@ -216,17 +223,11 @@ function delete_bot() {
     read -p "Ketik 'hapus' untuk mengonfirmasi: " confirm
     if [ "\$confirm" == "hapus" ]; then
         echo -e "\${BLUE}Memulai proses penghapusan...${NC}"
-        echo "1. Menghentikan service bot..."
         systemctl stop converterbot.service || true
-        echo "2. Menonaktifkan service bot..."
         systemctl disable converterbot.service || true
-        echo "3. Menghapus file service..."
         rm -f "\$SERVICE_FILE_MENU"
-        echo "4. Reload systemd daemon..."
         systemctl daemon-reload
-        echo "5. Menghapus direktori proyek..."
         rm -rf "\$PROJECT_DIR_MENU"
-        echo "6. Menghapus skrip menu ini..."
         rm -f "\$MENU_SCRIPT_PATH_SELF"
         echo -e "\${GREEN}Bot telah berhasil dihapus dari server.${NC}"
         exit 0
@@ -235,19 +236,13 @@ function delete_bot() {
     fi
 }
 
-# Logika utama menu
 while true; do
     show_menu
     read -p "Pilih opsi [1-7]: " choice
     case \$choice in
-        1) edit_bot ;;
-        2) restart_bot ;;
-        3) check_status ;;
-        4) check_logs ;;
-        5) update_script ;;
-        6) delete_bot ;;
-        7) break ;;
-        *) echo -e "\${RED}Pilihan tidak valid.${NC}"; sleep 1 ;;
+        1) edit_bot ;; 2) restart_bot ;; 3) check_status ;;
+        4) check_logs ;; 5) update_script ;; 6) delete_bot ;;
+        7) break ;; *) echo -e "\${RED}Pilihan tidak valid.${NC}"; sleep 1 ;;
     esac
 done
 EOF
@@ -260,15 +255,13 @@ if [ "$(id -u)" -ne 0 ]; then
   echo -e "${RED}Skrip ini perlu dijalankan dengan hak akses root atau sudo.${NC}" >&2; exit 1
 fi
 echo -e "${BLUE}Memulai proses instalasi/pembaruan Bot Konverter...${NC}"
-echo -e "\n${BLUE}Langkah 1: Mengupdate sistem dan menginstal dependensi...${NC}"
+echo -e "\n${BLUE}Langkah 1: Instalasi dependensi...${NC}"
 apt-get update > /dev/null
 apt-get install -y python3 python3-pip python3-venv curl > /dev/null
-echo -e "\n${BLUE}Langkah 2: Menyiapkan direktori & lingkungan virtual...${NC}"
+echo -e "\n${BLUE}Langkah 2: Menyiapkan direktori & venv...${NC}"
 mkdir -p "$PROJECT_DIR"
 if [ ! -d "$VENV_DIR" ]; then python3 -m venv "$VENV_DIR"; fi
-source "$VENV_DIR/bin/activate"
-pip install -q python-telegram-bot
-deactivate
+source "$VENV_DIR/bin/activate"; pip install -q python-telegram-bot; deactivate
 if [ ! -f "$BOT_SCRIPT_PATH" ]; then
     echo -e "\n${BLUE}Langkah 3: Konfigurasi awal bot...${NC}"; create_bot_script
 else
